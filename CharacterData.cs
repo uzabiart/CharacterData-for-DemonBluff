@@ -1,5 +1,5 @@
 ﻿// Project: Demon Bluff (Sample Reference)
-// File: CharacterData.cs  |  Version: v0.380e  |  Date: 2025-09-22
+// File: CharacterData.cs  |  Version: v0.380e
 // Purpose: Reference-only implementation showing how characters are coded.
 // License: All Rights Reserved – shared for educational reference only.
 //          You may read and learn from this file, but you may not use this code in other projects without permission.
