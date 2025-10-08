@@ -1,5 +1,5 @@
 ﻿// Project: Demon Bluff (Sample Reference)
-// File: CharacterData.cs  |  Version: v0.385a  |  Date: 2025-10-08
+// File: CharacterData.cs  |  Version: v0.380e  |  Date: 2025-09-22
 // Purpose: Reference-only implementation showing how characters are coded.
 // License: All Rights Reserved – shared for educational reference only.
 //          You may read and learn from this file, but you may not use this code in other projects without permission.
@@ -105,8 +105,13 @@ public class CharacterData : ScriptableObject
     }
     public bool CheckIfSkinUnlocked(string skinId)
     {
-        if (SavesGame.UnlockedSkins.ids.Contains(skinId)) return true;
+        foreach (SkinData sd in skins)
+            if (skinId == sd.skinId)
+                return sd.CheckIfUnlocked();
+
         return false;
+        //if (SavesGame.UnlockedSkins.ids.Contains(skinId)) return true;
+        //return false;
     }
     public void ChangeSkin(SkinData skin)
     {
@@ -1632,9 +1637,14 @@ public class FortuneTeller : Role
                 isEvil = true;
         }
 
-        string info = $"Is #{CharacterPicker.PickedCharacters[0].id} or #{CharacterPicker.PickedCharacters[1].id} Evil?: {isEvil}";
-
         List<Character> chars = new List<Character>(CharacterPicker.PickedCharacters);
+        chars = chars
+            .OrderBy(c => c.id)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
+
+        string info = $"Is #{chars[0].id} or #{chars[1].id} Evil?: {isEvil}";
+
         ActedInfo actedInfo = new ActedInfo(info, chars);
         onActed?.Invoke(actedInfo);
         Debug.Log($"{info}");
@@ -1657,18 +1667,20 @@ public class FortuneTeller : Role
 
         bool isEvil = true;
 
-        //if (randomId < 0.2f)
-        //isEvil = false;
-
         foreach (Character c in CharacterPicker.PickedCharacters)
         {
             if (c.GetAlignment() == EAlignment.Evil)
                 isEvil = false;
         }
 
-        string info = $"Is #{CharacterPicker.PickedCharacters[0].id} or #{CharacterPicker.PickedCharacters[1].id} Evil?: {isEvil}";
-
         List<Character> chars = new List<Character>(CharacterPicker.PickedCharacters);
+        chars = chars
+            .OrderBy(c => c.id)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
+
+        string info = $"Is #{chars[0].id} or #{chars[1].id} Evil?: {isEvil}";
+
         onActed?.Invoke(new ActedInfo(info, chars));
         Debug.Log($"{info}");
     }
@@ -2329,8 +2341,10 @@ public class Investigator : Role // Oracle :
         pickedCharacters.Add(evil);
         pickedCharacters.Add(goods[UnityEngine.Random.Range(0, goods.Count)]);
 
-        System.Random random = new System.Random();
-        pickedCharacters = pickedCharacters.OrderBy(x => random.Next()).ToList();
+        pickedCharacters = pickedCharacters
+            .OrderBy(c => c.id)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
 
         newInfo = new ActedInfo($"#{pickedCharacters[0].id} or #{pickedCharacters[1].id} is a {evil.GetCharacterData().name}", pickedCharacters);
         return newInfo;
@@ -2358,8 +2372,10 @@ public class Investigator : Role // Oracle :
         goods.Remove(cc);
         pickedCharacters.Add(goods[UnityEngine.Random.Range(0, goods.Count)]);
 
-        System.Random random = new System.Random();
-        pickedCharacters = pickedCharacters.OrderBy(x => random.Next()).ToList();
+        pickedCharacters = pickedCharacters
+               .OrderBy(c => c.id)
+               .ThenBy(_ => UnityEngine.Random.value)
+               .ToList();
 
         List<CharacterData> minions = new List<CharacterData>(Gameplay.Instance.GetScriptCharacters());
         minions = Characters.Instance.FilterCharacterType(minions, ECharacterType.Minion);
@@ -2842,6 +2858,11 @@ public class Librarian : Role // Druid :
                 outsiders.Add(c);
         }
 
+        ids = ids
+            .OrderBy(c => c)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
+
         string info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere are NO Outcasts";
 
         if (outsiders.Count > 0)
@@ -2876,6 +2897,11 @@ public class Librarian : Role // Druid :
             if (c.GetRegisterAs().type == ECharacterType.Outcast)
                 outsiders.Add(c);
         }
+
+        ids = ids
+            .OrderBy(c => c)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
 
         string info = $"";
 
@@ -2969,6 +2995,11 @@ public class Juggler : Role // Jester :
             ids.Add(c.id);
         }
 
+        ids = ids
+            .OrderBy(c => c)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
+
         string info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere are {evils} Evils";
         if (evils == 1)
             info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere is {evils} Evil";
@@ -3000,6 +3031,11 @@ public class Juggler : Role // Jester :
 
             ids.Add(c.id);
         }
+
+        ids = ids
+            .OrderBy(c => c)
+            .ThenBy(_ => UnityEngine.Random.value)
+            .ToList();
 
         int townsfolks = 0;
         townsfolks = Calculator.RemoveNumberAndGetRandomNumberFromList(evils, 0, 4);
