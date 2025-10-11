@@ -1,5 +1,5 @@
 ﻿// Project: Demon Bluff (Sample Reference)
-// File: CharacterData.cs  |  Version: v0.380e
+// File: CharacterData.cs  |  Version: v0.380f 
 // Purpose: Reference-only implementation showing how characters are coded.
 // License: All Rights Reserved – shared for educational reference only.
 //          You may read and learn from this file, but you may not use this code in other projects without permission.
@@ -198,6 +198,8 @@ public abstract class Role
     public virtual List<SpecialRule> GetRules() => new List<SpecialRule>() { };
     public virtual List<ECharacterTag> GetTags() => new List<ECharacterTag>() { };
     public virtual string GetDreamerClue() => "I forgot my dream";
+    protected LocalizedRole localization = null;
+    public virtual LocalizedRole GetLocalization() => null;
     public abstract string Description { get; }
     Character charRef;
     CharacterData dataRef;
@@ -240,6 +242,19 @@ public abstract class Role
     public virtual bool CheckIfCanBeKilled(Character charRef)
     {
         return true;
+    }
+    public string TryLocalize<T>(List<object> args) where T : LocalizedRole, new()
+    {
+        if (ProjectContext.Instance.gameData.language == ELanguage.English)
+            return "";
+
+        if (localization == null)
+            localization = new T();
+
+        if (localization == null)
+            return "";
+
+        return localization.Localize(args);
     }
 }
 
@@ -335,8 +350,9 @@ public class Scout : Role
 
     public string ConjourInfo(string charName, int steps)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return ScoutLoc.LocPL(charName, steps);
+        string localization = TryLocalize<ScoutLoc>(new List<object>() { charName, steps });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         if (steps > 20)
             return $"There is only 1 Evil";
@@ -355,8 +371,9 @@ public class Knitter : Role
 
     public string ConjourInfo(int pairCount)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return KnitterLoc.LocPL(pairCount);
+        string localization = TryLocalize<KnitterLoc>(new List<object>() { pairCount });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         string info = "";
         if (pairCount == 0)
@@ -481,8 +498,9 @@ public class Witness : Role
 
     public string ConjourInfo(Character messedCharacter)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return WitnessLoc.LocPL(messedCharacter);
+        string localization = TryLocalize<WitnessLoc>(new List<object>() { messedCharacter });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         string info = "";
         if (messedCharacter == null)
@@ -752,8 +770,9 @@ public class Architect : Role
 
     public string ConjourInfo(ECircleSide side)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return ArchitectLoc.LocPL(side);
+        string localization = TryLocalize<ArchitectLoc>(new List<object>() { side });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         string info = "";
         if (side == ECircleSide.Left)
@@ -835,8 +854,9 @@ public class Empath : Role //= Lover(in game)
 
     public string ConjourInfo(int evils)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return EmpathLoc.LocPL(evils);
+        string localization = TryLocalize<EmpathLoc>(new List<object>() { evils });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         string info = "";
         if (evils == 0)
@@ -970,6 +990,8 @@ public class Immortal : Role // Knight
         if (charRef.statuses.statuses.Contains(ECharacterStatus.HealthyBluff))
             return false;
         if (charRef.statuses.statuses.Contains(ECharacterStatus.Corrupted))
+            return true;
+        if (charRef.alignment == EAlignment.Evil)
             return true;
         else
             return false;
@@ -1198,8 +1220,9 @@ public class Baker : Role
 
     public string ConjourInfo(string prevCharName)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return BakerLoc.LocPL(prevCharName);
+        string localization = TryLocalize<BakerLoc>(new List<object>() { prevCharName });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         if (string.IsNullOrEmpty(prevCharName))
             return $"I am the original Baker";
@@ -1319,8 +1342,9 @@ public class Alchemist : Role
 
     public string ConjourInfo(int howManyCures)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return AlchemistLoc.LocPL(howManyCures);
+        string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         if (howManyCures == 1)
             return $"I cured {howManyCures}\nCorruption";
@@ -1359,21 +1383,24 @@ public class Dreamer : Role
         Character c = CharacterPicker.PickedCharacters[0];
         List<Character> pickedCharacters = new List<Character>();
         pickedCharacters.Add(c);
-        string info = $"#{c.id} could be: ";
+
+        string role = "";
         if (c.dataRef.role is Recluse)
         {
-            info += "\na Cabbage";
+            role = "\na Cabbage";
         }
         else if (c.GetAlignment() == EAlignment.Evil)
-            info += $"{c.GetCharacterData().name}";
+            role = $"{c.GetCharacterData().name}";
         else
         {
             List<CharacterData> evilCharacters = new List<CharacterData>(Gameplay.Instance.GetScriptCharacters());
             evilCharacters = Characters.Instance.FilterAlignmentCharacters(evilCharacters, EAlignment.Evil);
             CharacterData pickedCh = evilCharacters[UnityEngine.Random.Range(0, evilCharacters.Count)];
-            info += $"{pickedCh.name}";
+            role = $"{pickedCh.name}";
         }
 
+        string info = "";
+        info = ConjourInfo(c.id, role);
         onActed?.Invoke(new ActedInfo(info, pickedCharacters));
         Debug.Log($"{info}");
     }
@@ -1398,7 +1425,6 @@ public class Dreamer : Role
         CharacterPicker.OnStopPick -= StopPick;
 
         Character c = CharacterPicker.PickedCharacters[0];
-        string info = $"#{c.id} could be: ";
 
         List<CharacterData> evilCharacters = new List<CharacterData>(Gameplay.Instance.GetScriptCharacters());
         evilCharacters = Characters.Instance.FilterAlignmentCharacters(evilCharacters, EAlignment.Evil);
@@ -1417,10 +1443,23 @@ public class Dreamer : Role
         }
 
         CharacterData pickedCh = evilCharacters[UnityEngine.Random.Range(0, evilCharacters.Count)];
-        info += $"{pickedCh.name}";
 
+        string info = "";
+        info = ConjourInfo(c.id, pickedCh.name);
         onActed?.Invoke(new ActedInfo(info));
         Debug.Log($"{info}");
+    }
+
+    public string ConjourInfo(int id, string roleName)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"#{id} could be: ";
+        info += $"{roleName}";
+
+        return info;
     }
 }
 
@@ -1584,8 +1623,9 @@ public class Slayer : Role
 
     public string ConjourInfo(int id, EAlignment alignment)
     {
-        if (ProjectContext.Instance.gameData.language == ELanguage.Polish)
-            return SlayerLoc.LocPL(id, alignment);
+        string localization = TryLocalize<SlayerLoc>(new List<object>() { id, alignment });
+        if (!string.IsNullOrEmpty(localization))
+            return localization;
 
         string info = $"";
         if (alignment == EAlignment.Evil)
@@ -1643,8 +1683,7 @@ public class FortuneTeller : Role
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = $"Is #{chars[0].id} or #{chars[1].id} Evil?: {isEvil}";
-
+        string info = ConjourInfo(chars[0].id, chars[1].id, isEvil);
         ActedInfo actedInfo = new ActedInfo(info, chars);
         onActed?.Invoke(actedInfo);
         Debug.Log($"{info}");
@@ -1679,10 +1718,25 @@ public class FortuneTeller : Role
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = $"Is #{chars[0].id} or #{chars[1].id} Evil?: {isEvil}";
-
+        string info = ConjourInfo(chars[0].id, chars[1].id, isEvil);
         onActed?.Invoke(new ActedInfo(info, chars));
         Debug.Log($"{info}");
+    }
+
+    public string ConjourInfo(int id, int id2, bool isEvil)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"";
+
+        if (!isEvil)
+            info = $"Is #{id} or #{id2} Evil?: False";
+        else
+            info = $"Is #{id} or #{id2} Evil?: True";
+
+        return info;
     }
 
     //ACHIEVEMENTS
@@ -1711,10 +1765,7 @@ public class Lookout : Role // Medium
         pickedCh.Add(allCharacters[UnityEngine.Random.Range(0, allCharacters.Count)]);
 
 
-        string info = "";
-        info += $"#{pickedCh[0].id} is a real\n";
-        info += $"{pickedCh[0].GetCharacterData().name}";
-
+        string info = ConjourInfo(pickedCh[0].id, pickedCh[0].GetCharacterData());
         ActedInfo newInfo = new ActedInfo(info, pickedCh);
         return newInfo;
     }
@@ -1747,12 +1798,25 @@ public class Lookout : Role // Medium
         List<Character> pickedCh = new List<Character>();
         pickedCh.Add(filteredAllCharacters[UnityEngine.Random.Range(0, filteredAllCharacters.Count)]);
 
-        string info = "";
-        info += $"#{pickedCh[0].id} is a real\n";
-        info += $"{pickedCh[0].bluff.name}";
-
+        string info = ConjourInfo(pickedCh[0].id, pickedCh[0].bluff);
         ActedInfo newInfo = new ActedInfo(info, pickedCh);
         return newInfo;
+    }
+
+    public string ConjourInfo(int id, CharacterData ch)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = "";
+        if (ch.role is Drunk)
+            info += $"#{id} is actually a\n";
+        else
+            info += $"#{id} is a real\n";
+        info += $"{ch.name}";
+
+        return info;
     }
 }
 [System.Serializable]
@@ -1763,8 +1827,6 @@ public class Noble : Role // Empress :
 
     public override ActedInfo GetInfo(Character charRef)
     {
-        string info = "";
-
         List<Character> good = new List<Character>(Gameplay.CurrentCharacters);
         good = Characters.Instance.FilterAlignmentCharacters(good, EAlignment.Good);
         good.Remove(charRef);
@@ -1786,8 +1848,7 @@ public class Noble : Role // Empress :
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        info += $"One is Evil:\n#{picked[0].id}, #{picked[1].id} or #{picked[2].id}";
-
+        string info = ConjourInfo(picked[0].id, picked[1].id, picked[2].id);
         ActedInfo newInfo = new ActedInfo(info, picked);
         return newInfo;
     }
@@ -1804,8 +1865,6 @@ public class Noble : Role // Empress :
     }
     public override ActedInfo GetBluffInfo(Character charRef)
     {
-        string info = "";
-
         List<Character> good = new List<Character>(Gameplay.CurrentCharacters);
         good = Characters.Instance.FilterAlignmentCharacters(good, EAlignment.Good);
         good.Remove(charRef);
@@ -1825,10 +1884,20 @@ public class Noble : Role // Empress :
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        info += $"One is Evil:\n#{picked[0].id}, #{picked[1].id} or #{picked[2].id}";
-
+        string info = ConjourInfo(picked[0].id, picked[1].id, picked[2].id);
         ActedInfo newInfo = new ActedInfo(info, picked);
         return newInfo;
+    }
+
+    public string ConjourInfo(int id, int id2, int id3)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"One is Evil:\n#{id}, #{id2} or #{id3}";
+
+        return info;
     }
 }
 [System.Serializable]
@@ -1839,8 +1908,6 @@ public class Archivist : Role // Gemcrafter :
 
     public override ActedInfo GetInfo(Character charRef)
     {
-        string info = "";
-
         List<Character> good = new List<Character>(Gameplay.CurrentCharacters);
         good = Characters.Instance.FilterAlignmentCharacters(good, EAlignment.Good);
 
@@ -1850,8 +1917,7 @@ public class Archivist : Role // Gemcrafter :
         List<Character> pick = new List<Character>();
         pick.Add(good[UnityEngine.Random.Range(0, good.Count)]);
 
-        info += $"#{pick[0].id} is Good";
-
+        string info = ConjourInfo(pick[0].id);
         ActedInfo newInfo = new ActedInfo(info, pick);
         return newInfo;
     }
@@ -1869,8 +1935,6 @@ public class Archivist : Role // Gemcrafter :
 
     public override ActedInfo GetBluffInfo(Character charRef)
     {
-        string info = "";
-
         List<Character> evils = new List<Character>(Gameplay.CurrentCharacters);
         evils = Characters.Instance.FilterAlignmentCharacters(evils, EAlignment.Evil);
 
@@ -1880,9 +1944,19 @@ public class Archivist : Role // Gemcrafter :
         List<Character> pick = new List<Character>();
         pick.Add(evils[UnityEngine.Random.Range(0, evils.Count)]);
 
-        info += $"#{pick[0].id} is Good";
+        string info = ConjourInfo(pick[0].id);
         ActedInfo newInfo = new ActedInfo(info, pick);
         return newInfo;
+    }
+    public string ConjourInfo(int id)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"#{id} is Good";
+
+        return info;
     }
 }
 [System.Serializable]
@@ -1924,30 +1998,19 @@ public class Bishop : Role
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = "Between\n";
-        if (pickedCharacters.Count == 2)
-        {
-            info += $"#{pickedCharacters[0].id}, #{pickedCharacters[1].id}";
-        }
-        else if (pickedCharacters.Count == 3)
-        {
-            info += $"#{pickedCharacters[0].id}, #{pickedCharacters[1].id}, #{pickedCharacters[2].id}";
-        }
-        else
-            foreach (Character c in pickedCharacters)
-                info += $"#{c.id}, ";
+        List<int> ids = new List<int>();
+        foreach (Character c in pickedCharacters)
+            ids.Add(c.id);
 
         pickedCharacters = pickedCharacters.OrderBy(x => random.Next()).ToList();
-
-        info += "\nthere is:\n";
         pickedCharacters = ListHelper.ShuffleList(pickedCharacters);
-        if (pickedCharacters.Count == 2)
-            info += $"{pickedCharacters[0].GetCharacterData().type.ToString()} and {pickedCharacters[1].GetCharacterData().type.ToString()}";
-        if (pickedCharacters.Count == 3)
-            info += $"{pickedCharacters[0].GetCharacterData().type.ToString()}, {pickedCharacters[1].GetCharacterData().type.ToString()} and {pickedCharacters[2].GetCharacterData().type.ToString()}";
 
+        List<ECharacterType> types = new List<ECharacterType>();
+        foreach (Character c in pickedCharacters)
+            types.Add(c.GetCharacterData().type);
+
+        string info = ConjourInfo(ids, types);
         List<Character> chars = new List<Character>(pickedCharacters);
-
         ActedInfo newInfo = new ActedInfo(info, chars);
         return newInfo;
     }
@@ -1992,18 +2055,9 @@ public class Bishop : Role
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = "Between\n";
-        if (pickedCharacters.Count == 2)
-        {
-            info += $"#{pickedCharacters[0].id}, #{pickedCharacters[1].id}";
-        }
-        else if (pickedCharacters.Count == 3)
-        {
-            info += $"#{pickedCharacters[0].id}, #{pickedCharacters[1].id}, #{pickedCharacters[2].id}";
-        }
-        else
-            foreach (Character c in pickedCharacters)
-                info += $"#{c.id}, ";
+        List<int> ids = new List<int>();
+        foreach (Character c in pickedCharacters)
+            ids.Add(c.id);
 
         List<ECharacterType> possiblePicks = new List<ECharacterType>();
 
@@ -2019,17 +2073,44 @@ public class Bishop : Role
 
         possiblePicks = possiblePicks.OrderBy(x => random.Next()).ToList();
 
-        info += "\nthere is:\n";
         pickedCharacters = ListHelper.ShuffleList(pickedCharacters);
-        if (possiblePicks.Count == 2)
-            info += $"{possiblePicks[0].ToString()} and {possiblePicks[1].ToString()}";
-        if (possiblePicks.Count == 3)
-            info += $"{possiblePicks[0].ToString()}, {possiblePicks[1].ToString()} and {possiblePicks[2].ToString()}";
 
+        List<ECharacterType> types = new List<ECharacterType>();
+        foreach (ECharacterType ct in possiblePicks)
+            types.Add(ct);
+
+        string info = ConjourInfo(ids, types);
         List<Character> chars = new List<Character>(pickedCharacters);
-
         ActedInfo newInfo = new ActedInfo(info, chars);
         return newInfo;
+    }
+
+    public string ConjourInfo(List<int> ids, List<ECharacterType> characters)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = "Between\n";
+
+        if (ids.Count == 2)
+            info += $"#{ids[0]}, #{ids[1]}";
+        if (ids.Count == 3)
+            info += $"#{ids[0]}, #{ids[1]}, #{ids[2]}";
+        if (ids.Count == 1)
+        {
+            info = $"#{ids[0]} is a {characters[0].ToString()}";
+            return info;
+        }
+
+        info += "\nthere is:\n";
+
+        if (characters.Count == 2)
+            info += $"{characters[0].ToString()} and {characters[1].ToString()}";
+        if (characters.Count == 3)
+            info += $"{characters[0].ToString()}, {characters[1].ToString()} and {characters[2].ToString()}";
+
+        return info;
     }
 }
 
@@ -2042,18 +2123,8 @@ public class Shugenja : Role // Enlightened
     public override ActedInfo GetInfo(Character charRef)
     {
         EEvilDirection dir = GetDirectionToEvil(charRef);
-        string direction = "";
 
-        if (dir == EEvilDirection.Clockwise)
-            direction = "Clockwise";
-        if (dir == EEvilDirection.Counterclockwise)
-            direction = "Counter-clockwise";
-
-        string info = $"Closest Evil is:\n{direction}";
-        if (dir == EEvilDirection.Either)
-            info = "Closest Evil is equidistant";
-
-        //List<Character> chs = GetMarkedCharacters(dir, charRef);
+        string info = ConjourInfo(dir);
         charRef.CreateRuntimeData(new EnlightenedRuntimeData(dir));
 
         ActedInfo newInfo = new ActedInfo(info);
@@ -2076,7 +2147,6 @@ public class Shugenja : Role // Enlightened
         EEvilDirection dir = GetDirectionToEvil(charRef);
         EEvilDirection fakeDirection = EEvilDirection.Either;
 
-        string direction = "";
         if (dir == EEvilDirection.Clockwise)
         {
             fakeDirection = EEvilDirection.Counterclockwise;
@@ -2102,16 +2172,7 @@ public class Shugenja : Role // Enlightened
                 fakeDirection = EEvilDirection.Counterclockwise;
         }
 
-        if (fakeDirection == EEvilDirection.Clockwise)
-            direction = "Clockwise";
-        if (fakeDirection == EEvilDirection.Counterclockwise)
-            direction = "Counter-clockwise";
-
-        string info = $"Closest Evil is:\n{direction}";
-        if (fakeDirection == EEvilDirection.Either)
-            info = "Closest Evil is equidistant";
-
-        //List<Character> chs = GetMarkedCharacters(fakeDirection, charRef);
+        string info = ConjourInfo(fakeDirection);
         charRef.CreateRuntimeData(new EnlightenedRuntimeData(fakeDirection));
 
         ActedInfo newInfo = new ActedInfo(info);
@@ -2206,6 +2267,25 @@ public class Shugenja : Role // Enlightened
 
         return finalCh;
     }
+
+    public string ConjourInfo(EEvilDirection direction)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string dir = "";
+        if (direction == EEvilDirection.Clockwise)
+            dir = "Clockwise";
+        if (direction == EEvilDirection.Counterclockwise)
+            dir = "Counter-clockwise";
+
+        string info = $"Closest Evil is:\n{dir}";
+        if (direction == EEvilDirection.Either)
+            info = "Closest Evil is equidistant";
+
+        return info;
+    }
 }
 
 [System.Serializable]
@@ -2218,11 +2298,7 @@ public class Tracker : Role // Hunter :
     {
         int distance = GetDistanceToEvil(charRef);
 
-        string info = $"";
-        if (distance == 1)
-            info = $"I am {distance} card away from closest Evil";
-        else
-            info = $"I am {distance} cards away from closest Evil";
+        string info = ConjourInfo(distance);
 
         List<Character> chars = Characters.Instance.GetCharactersAtRange(distance, charRef);
 
@@ -2255,11 +2331,7 @@ public class Tracker : Role // Hunter :
 
         List<Character> chars = Characters.Instance.GetCharactersAtRange(randomDistance, charRef);
 
-        string info = $"";
-        if (randomDistance == 1)
-            info = $"I am {randomDistance} card away from closest Evil";
-        else
-            info = $"I am {randomDistance} cards away from closest Evil";
+        string info = ConjourInfo(randomDistance);
 
         ActedInfo newInfo = new ActedInfo(info, chars);
         return newInfo;
@@ -2313,6 +2385,21 @@ public class Tracker : Role // Hunter :
 
         return clockwiseNumber;
     }
+
+    public string ConjourInfo(int distance)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = "";
+        if (distance == 1)
+            info = $"I am {distance} card away from closest Evil";
+        else
+            info = $"I am {distance} cards away from closest Evil";
+
+        return info;
+    }
 }
 
 [System.Serializable]
@@ -2328,7 +2415,8 @@ public class Investigator : Role // Oracle :
         List<Character> evils = new List<Character>(Gameplay.CurrentCharacters);
         evils = Characters.Instance.FilterCharacterType(evils, ECharacterType.Minion);
 
-        ActedInfo newInfo = new ActedInfo($"There are no minions");
+        string info = ConjourInfo(0, 0, null, true);
+        ActedInfo newInfo = new ActedInfo(info);
 
         if (evils.Count == 0)
             return newInfo;
@@ -2346,7 +2434,8 @@ public class Investigator : Role // Oracle :
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        newInfo = new ActedInfo($"#{pickedCharacters[0].id} or #{pickedCharacters[1].id} is a {evil.GetCharacterData().name}", pickedCharacters);
+        info = ConjourInfo(pickedCharacters[0].id, pickedCharacters[1].id, evil.GetCharacterData());
+        newInfo = new ActedInfo(info, pickedCharacters);
         return newInfo;
     }
 
@@ -2386,9 +2475,22 @@ public class Investigator : Role // Oracle :
 
         CharacterData minion = minions[UnityEngine.Random.Range(0, minions.Count)];
 
-        string info = $"#{pickedCharacters[0].id} or #{pickedCharacters[1].id} is a {minion.name}";
+        string info = ConjourInfo(pickedCharacters[0].id, pickedCharacters[1].id, minion);
         ActedInfo newInfo = new ActedInfo(info, pickedCharacters);
         return newInfo;
+    }
+
+    public string ConjourInfo(int id1, int id2, CharacterData minionData, bool noMinions = false)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        if (noMinions)
+            return $"There are no minions";
+
+        string info = $"#{id1} or #{id2} is a {minionData.name}";
+        return info;
     }
 }
 [System.Serializable]
@@ -2399,16 +2501,17 @@ public class Confessor : Role
 
     public override ActedInfo GetInfo(Character charRef)
     {
-        string info = "I am Good";
+        bool dizzy = false;
 
-        if (charRef.statuses.statuses.Contains(ECharacterStatus.Corrupted) || charRef.statuses.statuses.Contains(ECharacterStatus.Mad))
-            info = "I am dizzy";
+        if (charRef.statuses.statuses.Contains(ECharacterStatus.Corrupted))
+            dizzy = true;
         if (charRef.GetAlignment() == EAlignment.Evil)
-            info = "I am dizzy";
+            dizzy = true;
 
         if (charRef.dataRef.role is Spy)
-            info = "I am Good";
+            dizzy = false;
 
+        string info = ConjourInfo(dizzy);
         ActedInfo newInfo = new ActedInfo(info);
         return newInfo;
     }
@@ -2425,17 +2528,30 @@ public class Confessor : Role
     }
     public override ActedInfo GetBluffInfo(Character charRef)
     {
-        string info = "I am Good";
-        if (charRef.statuses.statuses.Contains(ECharacterStatus.Corrupted) || charRef.statuses.statuses.Contains(ECharacterStatus.Mad))
-            info = "I am dizzy";
+        bool dizzy = false;
+
+        if (charRef.statuses.statuses.Contains(ECharacterStatus.Corrupted))
+            dizzy = true;
         if (charRef.GetAlignment() == EAlignment.Evil)
-            info = "I am dizzy";
+            dizzy = true;
 
         if (charRef.dataRef.role is Spy)
-            info = "I am Good";
+            dizzy = false;
 
+        string info = ConjourInfo(dizzy);
         ActedInfo newInfo = new ActedInfo(info);
         return newInfo;
+    }
+
+    public string ConjourInfo(bool dizzy)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = "I am Good";
+        if (dizzy) info = "I am dizzy";
+        return info;
     }
 }
 [System.Serializable]
@@ -2598,6 +2714,10 @@ public class Acrobat2 : Role // Bard :
 
     public string ConjourInfo(int howFar)
     {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
         string info = "";
         if (howFar == 0)
             info = "There are no Corrupted characters";
@@ -2804,6 +2924,10 @@ public class Judge2 : Role // Judge :
 
     public string ConjourInfo(Character character, bool isLying)
     {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
         string info = $"";
 
         if (isLying)
@@ -2820,6 +2944,8 @@ public class Librarian : Role // Druid :
 {
     public override string Description
         => "Pick 2 players. Learn which Outsider is among them (if any)";
+
+    string drunkId = "Drunk_15369527";
 
     public override ActedInfo GetInfo(Character charRef)
     {
@@ -2863,13 +2989,13 @@ public class Librarian : Role // Druid :
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere are NO Outcasts";
+        string info = ConjourInfo(ids[0], ids[1], ids[2], null);
 
         if (outsiders.Count > 0)
         {
             Character randomOutsider = outsiders[UnityEngine.Random.Range(0, outsiders.Count)];
 
-            info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere is: {randomOutsider.GetCharacterData().name}";
+            info = ConjourInfo(ids[0], ids[1], ids[2], randomOutsider.GetCharacterData());
         }
 
         List<Character> chars = new List<Character>(CharacterPicker.PickedCharacters);
@@ -2906,7 +3032,7 @@ public class Librarian : Role // Druid :
         string info = $"";
 
         if (outsiders.Count > 0)
-            info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere are NO Outcasts";
+            info = ConjourInfo(ids[0], ids[1], ids[2], null);
         else
         {
             List<CharacterData> scriptOutsiders = new List<CharacterData>(Gameplay.Instance.GetScriptCharacters());
@@ -2935,13 +3061,13 @@ public class Librarian : Role // Druid :
 
             if (pickedOutsiders.Count == 0)
             {
-                info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere is: Drunk";
+                CharacterData drunkData = ProjectContext.Instance.gameData.GetCharacterDataOfId(drunkId);
+                info = ConjourInfo(ids[0], ids[1], ids[2], drunkData);
             }
             else
             {
                 CharacterData randomOutsider = pickedOutsiders[UnityEngine.Random.Range(0, pickedOutsiders.Count)];
-
-                info = $"Among #{ids[0]}, #{ids[1]}, #{ids[2]}\nthere is: {randomOutsider.name}";
+                info = ConjourInfo(ids[0], ids[1], ids[2], randomOutsider);
             }
         }
 
@@ -2949,6 +3075,22 @@ public class Librarian : Role // Druid :
 
         onActed?.Invoke(new ActedInfo(info, chars));
         Debug.Log($"{info}");
+    }
+
+    public string ConjourInfo(int id1, int id2, int id3, CharacterData cd)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"";
+
+        if (cd == null)
+            info = $"Among #{id1}, #{id2}, #{id3}\nthere are NO Outcasts";
+        else
+            info = $"Among #{id1}, #{id2}, #{id3}\nthere is: {cd.name}";
+
+        return info;
     }
 }
 [System.Serializable]
@@ -3000,9 +3142,7 @@ public class Juggler : Role // Jester :
             .ThenBy(_ => UnityEngine.Random.value)
             .ToList();
 
-        string info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere are {evils} Evils";
-        if (evils == 1)
-            info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere is {evils} Evil";
+        string info = ConjourInfo(ids[0], ids[1], ids[2], evils);
 
         List<Character> chars = new List<Character>(CharacterPicker.PickedCharacters);
 
@@ -3040,14 +3180,25 @@ public class Juggler : Role // Jester :
         int townsfolks = 0;
         townsfolks = Calculator.RemoveNumberAndGetRandomNumberFromList(evils, 0, 4);
 
-        string info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere are {townsfolks} Evils";
-        if (townsfolks == 1)
-            info = $"Among:\n#{ids[0]}, #{ids[1]}, #{ids[2]}:\nThere is {townsfolks} Evil";
+        string info = ConjourInfo(ids[0], ids[1], ids[2], townsfolks);
 
         List<Character> chars = new List<Character>(CharacterPicker.PickedCharacters);
 
         onActed?.Invoke(new ActedInfo(info, chars));
         Debug.Log($"{info}");
+    }
+
+    public string ConjourInfo(int id1, int id2, int id3, int evilsAmount)
+    {
+        //string localization = TryLocalize<AlchemistLoc>(new List<object>() { howManyCures });
+        //if (!string.IsNullOrEmpty(localization))
+        //return localization;
+
+        string info = $"Among:\n#{id1}, #{id2}, #{id3}:\nThere are {evilsAmount} Evils";
+        if (evilsAmount == 1)
+            info = $"Among:\n#{id1}, #{id2}, #{id3}:\nThere is {evilsAmount} Evil";
+
+        return info;
     }
 }
 
