@@ -22,8 +22,11 @@ public class Characters : MonoBehaviour
 
     public List<CharacterData> UniquePool = new List<CharacterData>();
     public List<CharacterData> DuplicatesPool = new List<CharacterData>();
+    public List<CharacterData> BluffMustInclude = new List<CharacterData>();
 
     public Action onSetup;
+
+    public static CharacterData CurrentStartOrderIteration;
 
     private void Awake()
     {
@@ -55,7 +58,7 @@ public class Characters : MonoBehaviour
     }
 
 
-    public void Init(List<CharacterData> charactersList)
+    public IEnumerator Init(List<CharacterData> charactersList)
     {
         //characters = GetComponentsInChildren<Character>();
         characters.Clear();
@@ -64,11 +67,15 @@ public class Characters : MonoBehaviour
 
         foreach (CharactersPool cp in characterPool)
         {
-            if (cp.characters.Length == charactersList.Count)
+            if (cp.cardPlaceHolders.Length == charactersList.Count)
             {
                 currentPool = cp;
                 cp.gameObject.SetActive(true);
-                characters = new List<Character>(cp.characters);
+
+                yield return StartCoroutine(cp.CreateAndGetCharacters(result =>
+                {
+                    characters = new List<Character>(result);
+                }));
             }
         }
 
@@ -77,6 +84,7 @@ public class Characters : MonoBehaviour
 
     private void ManageCharacters(List<CharacterData> charactersList)
     {
+        CurrentStartOrderIteration = null;
         int i = 0;
         UpdateCharacterPositions();
         PickRoundBluffs();
@@ -90,18 +98,39 @@ public class Characters : MonoBehaviour
 
         Gameplay.UpdateCharacters(characters);
 
+        foreach (Character c in characters)
+            c.Act(ETriggerPhase.Init);
+
+        GameplayEvents.OnLogRoundAction?.Invoke(new GameLog(GameLogStrings.StartGame));
+
         foreach (CharacterData cd in startGameActOrder)
+        {
+            if (cd.role is TriggerHelper)
+                cd.role.Act(ETriggerPhase.Start, null);
+
             foreach (Character c in characters)
             {
-                if (cd == c.GetCharacterBluffIfAble())
+                if (cd == c.dataRef)
                 {
+                    CurrentStartOrderIteration = cd;
                     c.Act(ETriggerPhase.Start);
-                    if (!(cd.role is Alchemist) &&
-                        !(cd.role is Poisoner) &&
-                        !(cd.role is Puzzlemaster))
-                        break;
                 }
             }
+        }
+
+        GameplayEvents.OnLogRoundAction?.Invoke(new GameLog(GameLogStrings.Day(0)));
+
+        // -> WILL NEED TO ADD THIS AT SOME POINT
+        //foreach (CharacterData cd in startGameActOrder)
+        //    foreach (Character c in characters)
+        //    {
+        //        if (cd == c.bluff)
+        //        {
+        //            CurrentStartOrderIteration = cd;
+        //            c.Act(ETriggerPhase.Start);
+        //            if (cd.role is Baron) continue;
+        //        }
+        //    }
 
         onSetup?.Invoke();
 
@@ -116,14 +145,54 @@ public class Characters : MonoBehaviour
         UIEvents.OnUpdateDeckView?.Invoke();
     }
 
+    public CharacterData GetARandomBluffMustIncludeOfType(ECharacterType type, bool remove = false)
+    {
+        List<CharacterData> uniqueVil = new List<CharacterData>(BluffMustInclude);
+        uniqueVil = Characters.Instance.FilterRealCharacterType(uniqueVil, ECharacterType.Villager);
+
+        if (uniqueVil.Count == 0) return null;
+        CharacterData pickedData = uniqueVil[UnityEngine.Random.Range(0, uniqueVil.Count)];
+        if (remove)
+            BluffMustInclude.Remove(pickedData);
+        return pickedData;
+    }
+    public CharacterData GetARandomBluffMustInclude(bool remove = false)
+    {
+        if (BluffMustInclude.Count == 0) return null;
+        CharacterData pickedData = BluffMustInclude[UnityEngine.Random.Range(0, BluffMustInclude.Count)];
+        if (remove)
+            BluffMustInclude.Remove(pickedData);
+        return pickedData;
+    }
+
+    public bool CheckIfCharacterShouldStartAct(CharacterData characterDataRef)
+    {
+        foreach (CharacterData cd in startGameActOrder)
+        {
+            if (cd == characterDataRef) return true;
+            if (cd == CurrentStartOrderIteration) return false;
+        }
+        return true;
+    }
+
     public CharacterData GetRandomUniqueVillagerBluff()
     {
+        if (GetARandomBluffMustIncludeOfType(ECharacterType.Villager) != null)
+            return GetARandomBluffMustIncludeOfType(ECharacterType.Villager, remove: true);
+
         List<CharacterData> uniqueVil = new List<CharacterData>(UniquePool);
         uniqueVil = Characters.Instance.FilterRealCharacterType(uniqueVil, ECharacterType.Villager);
         return uniqueVil[UnityEngine.Random.Range(0, uniqueVil.Count)];
     }
+    public void RemoveCharacterDataFromList(CharacterData data, List<CharacterData> listRef)
+    {
+        listRef.Remove(data);
+    }
     public CharacterData GetRandomUniqueBluff()
     {
+        if (GetARandomBluffMustInclude() != null)
+            return GetARandomBluffMustInclude(remove: true);
+
         return UniquePool[UnityEngine.Random.Range(0, UniquePool.Count)];
     }
     public CharacterData GetRandomDuplicateBluff()
@@ -159,11 +228,12 @@ public class Characters : MonoBehaviour
         }
 
         // Safeguard
-        if (UniquePool.Count == 0)
+        if (UniquePool.Count < 1)
         {
-            notInPlayCharacters = Gameplay.Instance.GetAscensionAllStartingCharacters();
+            notInPlayCharacters = Gameplay.Instance.GetAllAscensionCharacters();
             notInPlayCharacters = FilterBluffableCharacters(notInPlayCharacters);
             notInPlayCharacters = FilterAlignmentCharacters(notInPlayCharacters, EAlignment.Good);
+            notInPlayCharacters = FilterRealCharacterType(notInPlayCharacters, ECharacterType.Villager);
 
             UniquePool.Add(notInPlayCharacters[UnityEngine.Random.Range(0, notInPlayCharacters.Count)]);
         }
@@ -221,18 +291,26 @@ public class Characters : MonoBehaviour
 
     public void HighlightCharacters(List<Character> chList)
     {
-        foreach (Character c in chList)
+        //foreach (Character c in chList)
+        //{
+        //    if (c != null)
+        //        c.ShowHighlight();
+        //}
+        foreach (Character c in Gameplay.CurrentCharacters)
         {
-            if (c != null)
+            if (chList.Contains(c))
                 c.ShowHighlight();
+            else if (!c.hovering)
+                c.ShowBlackout();
         }
     }
     public void DisableHighlightAll()
     {
-        foreach (Character c in characters)
+        //foreach (Character c in characters)
+        foreach (Character c in Gameplay.CurrentCharacters)
         {
-            if (c != null)
-                c.DisableHighlight();
+            //if (c != null)
+            c.DisableHighlight();
         }
     }
 
@@ -242,7 +320,7 @@ public class Characters : MonoBehaviour
 
         foreach (Character c in Gameplay.CurrentCharacters)
         {
-            description += $"{c.id}: {c.GetCharacterBluffIfAble().name}";
+            description += $"{c.id}: {c.GetCharacterBluffIfAble().GetCharacterName()}";
             if (c.state == ECharacterState.Dead)
                 description += $", D";
             if (c.state == ECharacterState.Hidden)
@@ -270,7 +348,7 @@ public class Characters : MonoBehaviour
 
         foreach (Character c in Gameplay.CurrentCharacters)
         {
-            description += $"{c.id}: {c.GetCharacterBluffIfAble().name}";
+            description += $"{c.id}: {c.GetCharacterBluffIfAble().GetCharacterName()}";
             if (c.state == ECharacterState.Dead)
                 description += $", D";
             if (c.state == ECharacterState.Hidden)
@@ -284,6 +362,7 @@ public class Characters : MonoBehaviour
                 description += $"act: '{c.acteds.GetActed()}'";
 
             description += ";; \n";
+            //c.ChangeState(ECharacterState.Revealed);
         }
         Debug.Log(description);
 
@@ -341,6 +420,14 @@ public class Characters : MonoBehaviour
                 filteredCharacters.Add(c);
         return filteredCharacters;
     }
+    public List<CharacterData> FilterCharacterAlignment(List<CharacterData> inpuCharacters, EAlignment alignment)
+    {
+        List<CharacterData> filteredCharacters = new List<CharacterData>();
+        foreach (CharacterData c in inpuCharacters)
+            if (c.startingAlignment == alignment)
+                filteredCharacters.Add(c);
+        return filteredCharacters;
+    }
     public List<Character> FilterCharacterType(List<Character> inpuCharacters, ECharacterType type)
     {
         List<Character> filteredCharacters = new List<Character>();
@@ -381,6 +468,14 @@ public class Characters : MonoBehaviour
                 filteredCharacters.Add(c);
         return filteredCharacters;
     }
+    public List<Character> FilterCharactersWithoutResistance(List<Character> inpuCharacters, ECharacterStatus status)
+    {
+        List<Character> filteredCharacters = new List<Character>();
+        foreach (Character c in inpuCharacters)
+            if (!c.statuses.resistances.Contains(status))
+                filteredCharacters.Add(c);
+        return filteredCharacters;
+    }
     public List<Character> GetCharactersAtRange(int range, Character charRef)
     {
         List<Character> filteredChrs = new List<Character>();
@@ -410,7 +505,7 @@ public class Characters : MonoBehaviour
     {
         List<Character> filteredCharacters = new List<Character>();
         foreach (Character c in inpuCharacters)
-            if (c.GetAlignment() == alignment)
+            if (c.GetRegisterAlignment() == alignment)
                 filteredCharacters.Add(c);
         return filteredCharacters;
     }
@@ -459,6 +554,14 @@ public class Characters : MonoBehaviour
         List<CharacterData> filteredCharacters = new List<CharacterData>();
         foreach (CharacterData c in inpuCharacters)
             if (c.bluffable)
+                filteredCharacters.Add(c);
+        return filteredCharacters;
+    }
+    public List<CharacterData> FilterDisguisedCharacters(List<CharacterData> inpuCharacters)
+    {
+        List<CharacterData> filteredCharacters = new List<CharacterData>();
+        foreach (CharacterData c in inpuCharacters)
+            if (c.usuallyDisguised)
                 filteredCharacters.Add(c);
         return filteredCharacters;
     }
